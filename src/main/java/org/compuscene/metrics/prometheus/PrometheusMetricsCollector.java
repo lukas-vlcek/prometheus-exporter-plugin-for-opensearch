@@ -17,6 +17,8 @@
 
 package org.compuscene.metrics.prometheus;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ClusterStatsData;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
@@ -43,6 +45,7 @@ import org.opensearch.transport.TransportStats;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import io.prometheus.client.Summary;
@@ -51,6 +54,8 @@ import io.prometheus.client.Summary;
  * A class that describes a Prometheus metrics collector.
  */
 public class PrometheusMetricsCollector {
+
+    private static final Logger logger = LogManager.getLogger(PrometheusMetricsCollector.class);
 
     private boolean isPrometheusClusterSettings;
     private boolean isPrometheusIndices;
@@ -459,8 +464,16 @@ public class PrometheusMetricsCollector {
                 catalog.setClusterGauge("index_shards_number", cih.getRelocatingShards(), "relocating", indexName);
                 catalog.setClusterGauge("index_shards_number", cih.getUnassignedShards(), "unassigned", indexName);
                 IndexStats indexStats = entry.getValue();
-                updatePerIndexContextMetrics(indexName, "total", indexStats.getTotal());
-                updatePerIndexContextMetrics(indexName, "primaries", indexStats.getPrimaries());
+                try {
+                    updatePerIndexContextMetrics(indexName, "total", indexStats.getTotal());
+                    updatePerIndexContextMetrics(indexName, "primaries", indexStats.getPrimaries());
+                } catch (NullPointerException e) {
+                    if (logger.isWarnEnabled()) {
+                        logger.warn(String.format(Locale.ENGLISH, "Unable to construct metric for index [%s]", indexName));
+                        logger.warn(String.format(Locale.ENGLISH, "ClusterIndexHealth: [%s]", cih));
+                        logger.warn("Swallowing the exception: ", e);
+                    }
+                }
             }
         }
     }
